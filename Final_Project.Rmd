@@ -1,0 +1,264 @@
+---
+title: "Final_Project"
+output: pdf_document
+author: "Niteesha Adapala"
+date: "2024-12-10"
+---
+
+# Filtering and Summarizing Relevant Variables from a Dataset
+
+```{r setup,echo=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(readr)
+library(readxl)
+
+data_path <- "C:/Users/Niteesha/Desktop/big data/NSCH2016_Topical_SPSS_CAHM_DRCv2.csv"
+variables_path <- "C:/Users/Niteesha/Desktop/big data/2016NSCH_Variable name_labels.xlsx"
+
+data <- read_csv(data_path)
+variables <- read_excel(variables_path, sheet = 1)
+
+colnames(variables) <- c("Variable_Name", "Description")
+
+keywords <- c("disease", "health", "mental", "development", "disability", 
+              "chronic", "condition", "anxiety", "depression", "ADHD", "autism")
+
+relevant_vars <- variables %>%
+  filter(grepl(paste(keywords, collapse = "|"), Description, ignore.case = TRUE))
+
+cat("Relevant Variables:\n")
+print(relevant_vars)
+
+selected_data <- data %>%
+  select(all_of(relevant_vars$Variable_Name))
+
+cat("\nSummary of Selected Data:\n")
+print(summary(selected_data))
+
+cat("\nMissing Values:\n")
+print(colSums(is.na(selected_data)))
+
+```
+
+# Variable Filtering and Feature Selection for Dataset Preparation
+
+```{r,echo=FALSE, warning=FALSE, message=FALSE}
+individual_factors <- c("age", "gender", "race", "ethnicity", "BMI", 
+                        "physical_activity", "time_on_devices", "screen_time")
+clinical_conditions <- c("chronic_condition", "comorbidities", "mental_health", 
+                         "depression", "anxiety", "autism", "ADHD")
+family_environment <- c("family_income", "smoking_environment", 
+                        "neighborhood_safety", "social_support")
+
+selected_individual_vars <- variables %>%
+  filter(grepl(paste(individual_factors, collapse = "|"), Description, ignore.case = TRUE))
+
+selected_clinical_vars <- variables %>%
+  filter(grepl(paste(clinical_conditions, collapse = "|"), Description, ignore.case = TRUE))
+
+selected_family_vars <- variables %>%
+  filter(grepl(paste(family_environment, collapse = "|"), Description, ignore.case = TRUE))
+
+selected_vars <- bind_rows(selected_individual_vars, selected_clinical_vars, selected_family_vars)
+
+final_selected_vars <- selected_vars %>%
+  distinct(Variable_Name, .keep_all = TRUE) %>%
+  slice_head(n = 20)  # Adjust number if needed
+final_data <- data %>%
+  select(all_of(final_selected_vars$Variable_Name))
+
+cat("Final Selected Variables:\n")
+print(final_selected_vars)
+
+cat("\nSummary of Final Data:\n")
+print(summary(final_data))
+```
+# Data Cleaning: Handling Missing Values and Data Transformation
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse) 
+
+final_data_cleaned <- final_data %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))) %>%
+  drop_na()
+
+str(final_data_cleaned)
+final_data_cleaned <- final_data_cleaned %>%
+  mutate(across(where(is.character), as.factor))
+cat("\nSummary After Cleaning:\n")
+print(summary(final_data_cleaned))
+summary(final_data_cleaned)
+
+```
+# Correlation Analysis, Outcome Variable Derivation, and Chi-Square Tests for Categorical Variables
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+cor_matrix <- cor(final_data_cleaned %>% select(where(is.numeric)), use = "complete.obs")
+print(cor_matrix)
+
+cat("Column Names in Dataset:\n")
+print(colnames(final_data_cleaned))
+
+if (!"outcome_variable" %in% colnames(final_data_cleaned)) {
+  cat("Outcome variable does not exist. Deriving it...\n")
+  
+  final_data_cleaned$outcome_variable <- ifelse(final_data_cleaned$K2Q35A_1_YEARS > 5, "High", "Low")
+}
+
+final_data_cleaned$outcome_variable <- as.factor(final_data_cleaned$outcome_variable)
+
+cat("Structure of the dataset:\n")
+str(final_data_cleaned)
+
+cat_vars <- names(final_data_cleaned %>% select(where(is.factor)))
+cat("Running Chi-Square Tests on Categorical Variables:\n")
+for (var in cat_vars) {
+  if (var != "outcome_variable") {  
+    cat("\nVariable:", var, "\n")
+    print(chisq.test(table(final_data_cleaned[[var]], final_data_cleaned$outcome_variable)))
+  }
+}
+```
+# Correlation Heatmap and Visualization of Variable Distributions by Outcome
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Libraries
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(caret)
+
+cor_matrix <- cor(final_data_cleaned %>% select(where(is.numeric)), use = "complete.obs")
+print(cor_matrix)
+
+# Heatmap of Correlation Matrix
+cor_melted <- melt(cor_matrix)
+ggplot(cor_melted, aes(Var1, Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0, limit = c(-1, 1)) +
+  labs(title = "Correlation Matrix Heatmap", x = "Variables", y = "Variables", fill = "Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+cat("Column Names in Dataset:\n")
+print(colnames(final_data_cleaned))
+
+if (!"outcome_variable" %in% colnames(final_data_cleaned)) {
+  cat("Outcome variable does not exist. Deriving it...\n")
+  final_data_cleaned$outcome_variable <- ifelse(final_data_cleaned$K2Q35A_1_YEARS > 5, "High", "Low")
+}
+
+final_data_cleaned$outcome_variable <- as.factor(final_data_cleaned$outcome_variable)
+cat("Structure of the dataset:\n")
+str(final_data_cleaned)
+
+for (var in cat_vars) {
+  if (var != "outcome_variable") {
+    ggplot(final_data_cleaned, aes(x = .data[[var]], fill = outcome_variable)) +
+      geom_bar(position = "fill") +
+      labs(title = paste("Distribution of", var, "by Outcome"), x = var, y = "Proportion") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      scale_fill_manual(values = c("High" = "red", "Low" = "blue")) -> plot
+    print(plot)
+  }
+}
+
+numeric_vars <- names(final_data_cleaned %>% select(where(is.numeric)))
+
+for (var in numeric_vars) {
+  ggplot(final_data_cleaned, aes(x = outcome_variable, y = .data[[var]], fill = outcome_variable)) +
+    geom_boxplot() +
+    labs(title = paste("Box Plot of", var, "by Outcome"), x = "Outcome", y = var) +
+    theme_minimal() +
+    scale_fill_manual(values = c("High" = "red", "Low" = "blue")) -> plot
+  print(plot)
+}
+```
+
+# Age Distribution Analysis by Outcome Category
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(ggplot2)
+
+high_data <- final_data_cleaned %>% filter(outcome_variable == "High")
+
+cat("Plotting Age Distribution for High Outcome...\n")
+ggplot(high_data, aes(x = SC_AGE_YEARS)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "Age Distribution for High Outcome", x = "Age", y = "Count") +
+  theme_minimal() +
+  scale_y_continuous(breaks = seq(0, 5000, by = 1000))
+
+low_data <- final_data_cleaned %>% filter(outcome_variable == "Low")
+
+# Plot for "Low" outcome
+cat("Plotting Age Distribution for Low Outcome...\n")
+ggplot(low_data, aes(x = SC_AGE_YEARS)) +
+  geom_histogram(binwidth = 1, fill = "red", color = "black") +
+  labs(title = "Age Distribution for Low Outcome", x = "Age", y = "Count") +
+  theme_minimal() +
+  scale_y_continuous(breaks = seq(0, 100, by = 10))
+
+```
+
+# Random Forest Model Training, Evaluation, and Feature Importance Analysis with Visualization
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Libraries
+library(caret)
+library(randomForest)
+library(pROC)
+library(ggplot2)
+library(reshape2)
+set.seed(123)
+
+train_index <- createDataPartition(final_data_cleaned$outcome_variable, p = 0.8, list = FALSE)
+train_data <- final_data_cleaned[train_index, ]
+test_data <- final_data_cleaned[-train_index, ]
+
+# Train Random Forest Model
+rf_model <- randomForest(outcome_variable ~ ., data = train_data, importance = TRUE, ntree = 500)
+
+# 1. Variable Importance Plot
+cat("Variable Importance Plot...\n")
+varImpPlot(rf_model, main = "Random Forest Variable Importance")
+
+# 2. Predictions and Confusion Matrix
+rf_predictions <- predict(rf_model, newdata = test_data)
+conf_matrix <- confusionMatrix(rf_predictions, test_data$outcome_variable)
+
+# 3. Visual Confusion Matrix
+conf_matrix_table <- as.data.frame(conf_matrix$table)
+ggplot(data = conf_matrix_table, aes(x = Reference, y = Prediction, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), color = "white") +
+  scale_fill_gradient(low = "blue", high = "red") +
+  labs(title = "Confusion Matrix Heatmap", x = "Actual", y = "Predicted") +
+  theme_minimal()
+
+# 4. ROC Curve
+if (is.factor(test_data$outcome_variable)) {
+  rf_probabilities <- predict(rf_model, newdata = test_data, type = "prob")[, 2]
+  roc_curve <- roc(as.numeric(test_data$outcome_variable) - 1, rf_probabilities) # Adjust for factor levels
+  cat("ROC Curve...\n")
+  plot(roc_curve, col = "darkgreen", lwd = 2, main = "ROC Curve for Random Forest")
+  abline(a = 0, b = 1, lty = 2, col = "gray")
+  cat("AUC:", auc(roc_curve), "\n")
+}
+
+# 5. Advanced Feature Importance Visualization
+importance_df <- as.data.frame(importance(rf_model))
+importance_df$Variable <- rownames(importance_df)
+importance_df <- importance_df[order(importance_df$MeanDecreaseAccuracy, decreasing = TRUE), ]
+
+ggplot(importance_df, aes(x = reorder(Variable, MeanDecreaseAccuracy), y = MeanDecreaseAccuracy)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Feature Importance by Mean Decrease in Accuracy", x = "Features", y = "Importance") +
+  theme_minimal()
+
+```
+
+
