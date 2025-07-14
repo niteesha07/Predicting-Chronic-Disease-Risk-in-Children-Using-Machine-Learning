@@ -1,5 +1,5 @@
 # Predicting-Chronic-Disease-Risk-in-Children-Using-Machine-Learning
-# Exploring the Impact of Individual, Clinical, and Family Factors on Neurodevelopmental Health Outcomes in Children
+## Exploring the Impact of Individual, Clinical, and Family Factors on Neurodevelopmental Health Outcomes in Children
 
 This project analyzes data from the **National Survey of Children's Health (NSCH)** to understand how individual, clinical, and family environmental factors affect the risk of **Neurodevelopmental Disabilities (NDD)** in children. The analysis employs advanced machine learning methods to uncover key predictors and provide actionable insights for public health interventions.
 
