@@ -64,8 +64,8 @@ This project analyzes data from the **National Survey of Children's Health (NSCH
 
 ## 👨‍💻 Author
 
-**Dinesh Reddy**  
-Email: dinesh.reddy@ttap.co.nz
+**Niteesha Adapala**  
+Email: niteesha.adapala@gmail.com
 
 ---
 
